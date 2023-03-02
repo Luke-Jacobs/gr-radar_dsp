@@ -9,6 +9,7 @@
 #define INCLUDED_RADAR_DSP_SELFREF_FRAMESYNC_IMPL_H
 
 #include <gnuradio/radar_dsp/selfref_framesync.h>
+#include <complex>
 
 namespace gr {
   namespace radar_dsp {

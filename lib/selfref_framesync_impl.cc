@@ -69,13 +69,20 @@ namespace gr {
       int half_len = d_training_seq_len/2, samp_i = 0;
       
       // Perform frame self-referencing starting with the first new sample
-      for (samp_i = 0; samp_i < ninput_items[0]; samp_i++) {
+      int newinput_items = ninput_items[0] - d_training_seq_len + 1;
+      for (samp_i = 0; samp_i < newinput_items; samp_i++) {
         // Take the two halves of the training sequence and correlate them together
         const gr_complex *tr_seq_start = in+samp_i;
         arma::cx_fvec first_half = arma::cx_fvec(std::vector<gr_complex>(tr_seq_start, tr_seq_start+half_len));
         arma::cx_fvec second_half = arma::cx_fvec(std::vector<gr_complex>(tr_seq_start+half_len, tr_seq_start+d_training_seq_len));
         float seq_power = arma::sum(arma::abs(first_half.t() * first_half)) + arma::sum(arma::abs(second_half.t() * second_half));
         float corr = std::abs(arma::sum(first_half.t() * second_half)) / seq_power * 2.0;
+
+        // float corr = 0.0;
+        // for (int i = 0; i < half_len; i++) {
+        //   corr += std::abs(in[samp_i+i] * std::conj(in[samp_i+i+half_len]));
+        // }
+
         out_corr[samp_i] = corr;
         
         // Trigger immediate packet writing, since we are 1 sample beyond the training sequence correlation peak
@@ -83,6 +90,8 @@ namespace gr {
           d_items_to_write = d_packet_len;  // This is our "timer" for the number of packet samples that we still need to write
           d_packet_detected = true;
         }
+
+        d_prev_corr = corr;  // Update correlation history
 
         // Add to sample buffer if we are currently capturing a packet
         if (d_packet_detected) {
@@ -93,16 +102,19 @@ namespace gr {
             break;  // We do not want to start another packet if we have just finished one
           }
         }
-
-        d_prev_corr = corr;  // Update correlation history
       }
       
-      produce(1, samp_i-d_training_seq_len+1);  // Produce this many correlation values
-      consume(0, samp_i-d_training_seq_len+1);  // This records only the new samples we are reading
+      assert(samp_i > 0);
+      produce(1, samp_i);  // Produce this many correlation values
+      consume(0, samp_i);  // This records only the new samples we are reading
 
       // Dump the packet to output if we have collected it fully
-      if (!d_packet_detected && d_packet_buf.size() == d_packet_len) {
-        memcpy_s(out_packet, noutput_items*d_packet_len*sizeof(gr_complex), d_packet_buf.data(), d_packet_len*sizeof(gr_complex));
+      if (!d_packet_detected && (d_packet_buf.size() == d_packet_len)) {
+        // std::cout << "D";
+        // memcpy_s(out_packet, noutput_items*d_packet_len*sizeof(gr_complex), d_packet_buf.data(), d_packet_len*sizeof(gr_complex));
+        for (int write_i = 0; write_i < d_packet_len; write_i++) {
+          out_packet[write_i] = d_packet_buf[write_i];
+        }
         d_packet_buf.clear();
         produce(0, 1);
         return WORK_CALLED_PRODUCE;  // Produce 1 packet

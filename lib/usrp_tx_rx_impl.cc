@@ -185,7 +185,7 @@ int usrp_tx_rx_impl::general_work(int noutput_items,
 
   if (d_tx_mode) {
     // Send internal training sequence
-    send_packet(d_ts_buf, 10);
+    send_packet(d_ts_buf, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     produce(0, 0);
 
