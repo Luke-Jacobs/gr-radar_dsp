@@ -45,6 +45,10 @@ outputs:
   domain: stream
   dtype: float
   optional: 1
+- label: rx_ts
+  domain: stream
+  dtype: complex
+  vlen: ${training_seq_len}
 
 #  'file_format' specifies the version of the GRC yml format used in the file
 #  and should usually not be changed.

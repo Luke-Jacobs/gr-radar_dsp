@@ -12,5 +12,6 @@ install(FILES
     radar_dsp_harmonic_retrieval.block.yml
     radar_dsp_phase_measurement.block.yml
     radar_dsp_selfref_framesync.block.yml
-    radar_dsp_usrp_tx_rx.block.yml DESTINATION share/gnuradio/grc/blocks
+    radar_dsp_usrp_tx_rx.block.yml
+    radar_dsp_cfo_estimator.block.yml DESTINATION share/gnuradio/grc/blocks
 )

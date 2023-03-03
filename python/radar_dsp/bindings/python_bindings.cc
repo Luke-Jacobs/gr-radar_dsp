@@ -27,6 +27,7 @@ namespace py = pybind11;
     void bind_phase_measurement(py::module& m);
     void bind_selfref_framesync(py::module& m);
     void bind_usrp_tx_rx(py::module& m);
+    void bind_cfo_estimator(py::module& m);
 // ) END BINDING_FUNCTION_PROTOTYPES
 
 
@@ -61,5 +62,6 @@ PYBIND11_MODULE(radar_dsp_python, m)
     bind_phase_measurement(m);
     bind_selfref_framesync(m);
     bind_usrp_tx_rx(m);
+    bind_cfo_estimator(m);
     // ) END BINDING_FUNCTION_CALLS
 }

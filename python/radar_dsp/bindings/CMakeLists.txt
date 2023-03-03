@@ -34,7 +34,8 @@ list(APPEND radar_dsp_python_files
     harmonic_retrieval_python.cc
     phase_measurement_python.cc
     selfref_framesync_python.cc
-    usrp_tx_rx_python.cc python_bindings.cc)
+    usrp_tx_rx_python.cc
+    cfo_estimator_python.cc python_bindings.cc)
 
 GR_PYBIND_MAKE_OOT(radar_dsp
    ../../..

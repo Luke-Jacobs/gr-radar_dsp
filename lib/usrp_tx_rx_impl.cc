@@ -42,7 +42,13 @@ usrp_tx_rx_impl::usrp_tx_rx_impl(float carrier_freq, float sampling_rate, float 
 /*
  * Our virtual destructor.
  */
-usrp_tx_rx_impl::~usrp_tx_rx_impl() {}
+usrp_tx_rx_impl::~usrp_tx_rx_impl() {
+  // If in receive mode (TODO change this in the future when I will have both channels open at once)
+  if (!d_tx_mode) {
+    stop_continuous_streaming();
+    std::cout << "Stopped streaming from RX\n" << std::flush;
+  }
+}
 
 bool usrp_tx_rx_impl::start() {
   uhd::set_thread_priority_safe();
@@ -130,10 +136,6 @@ void usrp_tx_rx_impl::send_packet(const std::vector<gr_complex>& buf, int repeti
 size_t usrp_tx_rx_impl::recv_into_buf(std::vector<gr_complex> &buf, const size_t n) {
   uhd::rx_metadata_t md;
 
-  // ===== Only used for multi-channel reception =====
-  // std::vector<gr_complex *> buffs_ptrs(1);
-  // buffs_ptrs.push_back(&buf.front());
-
   const size_t num_rx_samps = d_rx_stream->recv(&buf.front(), n, md, 3.0);
 
   // Error handling
@@ -185,7 +187,7 @@ int usrp_tx_rx_impl::general_work(int noutput_items,
 
   if (d_tx_mode) {
     // Send internal training sequence
-    send_packet(d_ts_buf, 1);
+    send_packet(d_ts_buf, 2);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     produce(0, 0);
 
