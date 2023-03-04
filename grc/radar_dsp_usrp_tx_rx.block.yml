@@ -4,7 +4,7 @@ category: '[radar_dsp]'
 
 templates:
   imports: from gnuradio import radar_dsp
-  make: radar_dsp.usrp_tx_rx(${carrier_frequency}, ${sampling_rate}, ${gain}, ${packet_len}, ${start_tx}, ${ts_buf})
+  make: radar_dsp.usrp_tx_rx(${carrier_frequency}, ${sampling_rate}, ${samps_per_sym}, ${gain}, ${packet_len}, ${start_tx}, ${ts_buf})
 
 #  Make one 'parameters' list entry for every parameter you want settable from the GUI.
 #     Keys include:
@@ -19,6 +19,9 @@ parameters:
 - id: sampling_rate
   label: Sampling Rate
   dtype: float
+- id: samps_per_sym
+  label: Samples per Symbol
+  dtype: int
 - id: gain
   label: TX Gain
   dtype: float

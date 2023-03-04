@@ -14,7 +14,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(usrp_tx_rx.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(ad009562f518dcec5ec949a75be29922)                     */
+/* BINDTOOL_HEADER_FILE_HASH(21d6e2dd2dec2aed561a9a98b97db448)                     */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -39,6 +39,7 @@ void bind_usrp_tx_rx(py::module& m)
         .def(py::init(&usrp_tx_rx::make),
            py::arg("carrier_freq"),
            py::arg("sampling_rate"),
+           py::arg("samps_per_sym"),
            py::arg("gain"),
            py::arg("packet_len"),
            py::arg("start_tx"),

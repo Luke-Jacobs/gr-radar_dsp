@@ -32,7 +32,7 @@ namespace gr {
        * class. radar_dsp::usrp_tx_rx::make is the public interface for
        * creating new instances.
        */
-      static sptr make(float carrier_freq, float sampling_rate, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf);
+      static sptr make(float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf);
     };
 
   } // namespace radar_dsp

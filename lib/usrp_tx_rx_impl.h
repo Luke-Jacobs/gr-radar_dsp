@@ -27,15 +27,17 @@ namespace gr {
     {
      private:
       float d_carrier_freq, d_sampling_rate, d_gain;
+      int d_samps_per_sym;
       bool d_tx_mode;
       int d_packet_len;
       const std::vector<gr_complex> d_ts_buf;
+      std::vector<gr_complex> d_ts_mf_buf;
       uhd::rx_streamer::sptr d_rx_stream;
       uhd::tx_streamer::sptr d_tx_stream;
       uhd::usrp::multi_usrp::sptr d_usrp;
 
      public:
-      usrp_tx_rx_impl(float carrier_freq, float sampling_rate, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf);
+      usrp_tx_rx_impl(float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf);
       ~usrp_tx_rx_impl();
 
       bool start();

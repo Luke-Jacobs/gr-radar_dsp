@@ -8,19 +8,47 @@
 #include "usrp_tx_rx_impl.h"
 #include <gnuradio/io_signature.h>
 #include <algorithm>
+#include <gnuradio/filter/firdes.h>
+#include <armadillo>
 
 namespace gr {
 namespace radar_dsp {
 
-usrp_tx_rx::sptr usrp_tx_rx::make(float carrier_freq, float sampling_rate, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf)
+/*
+ * Matched Filter Convolution
+ */
+std::vector<gr_complex> rrc_filter(std::vector<gr_complex>& buf, float samp_rate, int samps_per_sym, int num_taps) {
+  std::vector<float> taps = filter::firdes::root_raised_cosine(1.0, samp_rate, samp_rate / samps_per_sym, 0.35, num_taps);
+  arma::cx_fvec in_vec(buf);
+  std::vector<gr_complex> ctaps(taps.size());
+  for (int i = 0; i < taps.size(); i++)
+    ctaps[i] = std::complex<float>(taps[i], 0.0);
+  arma::cx_fvec taps_vec(ctaps);
+  arma::cx_fvec out = arma::conv(in_vec, taps_vec, "full");  // With "full", the output size is larger than either input vector
+  return std::vector<gr_complex>(out.begin(), out.end());
+}
+
+/*
+ * Upsampling
+ */
+std::vector<gr_complex> upsample(const std::vector<gr_complex> &in_buf, int upsampling_rate) {
+  assert(upsampling_rate > 0);
+  std::vector<gr_complex> out(in_buf.size() * upsampling_rate, gr_complex(0.0, 0.0));
+  for (int i = 0; i < in_buf.size() * upsampling_rate; i++) {
+    out[i*upsampling_rate] = in_buf[i];
+  }
+  return out;
+}
+
+usrp_tx_rx::sptr usrp_tx_rx::make(float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf)
 {
-    return gnuradio::make_block_sptr<usrp_tx_rx_impl>(carrier_freq, sampling_rate, gain, packet_len, start_tx, ts_buf);
+    return gnuradio::make_block_sptr<usrp_tx_rx_impl>(carrier_freq, sampling_rate, samps_per_sym, gain, packet_len, start_tx, ts_buf);
 }
 
 /*
  * The private constructor
  */
-usrp_tx_rx_impl::usrp_tx_rx_impl(float carrier_freq, float sampling_rate, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf)
+usrp_tx_rx_impl::usrp_tx_rx_impl(float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf)
     : // the input is a sample vector (a single packet, a training sequence)
       // the output is a sample stream from the USRP, given to self-ref framesync
       gr::block("usrp_tx_rx",
@@ -28,6 +56,7 @@ usrp_tx_rx_impl::usrp_tx_rx_impl(float carrier_freq, float sampling_rate, float 
                 gr::io_signature::make(1 /* min outputs */, 1 /*max outputs */, sizeof(gr_complex))),
       d_carrier_freq(carrier_freq),
       d_sampling_rate(sampling_rate),
+      d_samps_per_sym(samps_per_sym),
       d_gain(gain),
       d_tx_mode(start_tx),
       d_packet_len(packet_len),
@@ -112,6 +141,14 @@ bool usrp_tx_rx_impl::start() {
     start_continuous_streaming();
   }
 
+  // preprocess training sequence
+  auto ts_up = upsample(d_ts_buf, d_samps_per_sym);
+  d_ts_mf_buf = rrc_filter(ts_up, d_sampling_rate, d_samps_per_sym, 11*d_samps_per_sym);
+  std::cout << "Matched-filter Training Sequence:\n";
+  for (auto sample : d_ts_mf_buf)
+    std::cout << sample << " ";
+  std::cout << "\n";
+
   return true;
 }
 
@@ -187,7 +224,8 @@ int usrp_tx_rx_impl::general_work(int noutput_items,
 
   if (d_tx_mode) {
     // Send internal training sequence
-    send_packet(d_ts_buf, 1);
+    send_packet(d_ts_mf_buf, 1);
+    std::cout << "Sending packet of length " << d_ts_mf_buf.size() << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     produce(0, 0);
 

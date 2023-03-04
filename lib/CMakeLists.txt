@@ -29,7 +29,7 @@ if(NOT radar_dsp_sources)
 endif(NOT radar_dsp_sources)
 
 add_library(gnuradio-radar_dsp SHARED ${radar_dsp_sources})
-target_link_libraries(gnuradio-radar_dsp gnuradio::gnuradio-runtime armadillo openblas uhd)
+target_link_libraries(gnuradio-radar_dsp gnuradio::gnuradio-runtime armadillo openblas uhd gnuradio-filter)
 target_include_directories(gnuradio-radar_dsp
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
     PUBLIC $<INSTALL_INTERFACE:include>
