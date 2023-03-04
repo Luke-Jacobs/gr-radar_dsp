@@ -19,6 +19,7 @@ list(APPEND radar_dsp_sources
     selfref_framesync_impl.cc
     usrp_tx_rx_impl.cc
     cfo_estimator_impl.cc
+    channel_estimator_impl.cc
 )
 
 set(radar_dsp_sources "${radar_dsp_sources}" PARENT_SCOPE)

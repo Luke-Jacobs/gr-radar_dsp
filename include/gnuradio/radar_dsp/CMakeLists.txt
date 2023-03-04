@@ -17,5 +17,6 @@ install(FILES
     phase_measurement.h
     selfref_framesync.h
     usrp_tx_rx.h
-    cfo_estimator.h DESTINATION include/gnuradio/radar_dsp
+    cfo_estimator.h
+    channel_estimator.h DESTINATION include/gnuradio/radar_dsp
 )

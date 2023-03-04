@@ -121,8 +121,8 @@ void usrp_tx_rx_impl::send_packet(const std::vector<gr_complex>& buf, int repeti
   md.end_of_burst = false;
   md.has_time_spec = true;
   md.time_spec = d_usrp->get_time_now() + uhd::time_spec_t(0.1);
-  // std::cout << ".";
   size_t num_sent_samps = 0;
+
   for (int i = 0; i < repetition; i++)
     num_sent_samps += d_tx_stream->send(&buf.front(), buf.size(), md, 1);
   if (num_sent_samps != buf.size()*repetition) {
@@ -187,7 +187,7 @@ int usrp_tx_rx_impl::general_work(int noutput_items,
 
   if (d_tx_mode) {
     // Send internal training sequence
-    send_packet(d_ts_buf, 2);
+    send_packet(d_ts_buf, 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     produce(0, 0);
 

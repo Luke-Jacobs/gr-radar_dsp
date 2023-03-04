@@ -54,7 +54,7 @@ int cfo_estimator_impl::work(int noutput_items,
         arma::cx_fvec first_half(std::vector<gr_complex>(vec_start, vec_start+d_training_seq_len/2)),
                       second_half(std::vector<gr_complex>(vec_start+d_training_seq_len/2, vec_start+d_training_seq_len));
         float cfo_est = std::arg(arma::sum(first_half.t() * second_half)) * d_samp_rate / (2*PI*d_training_seq_len/2);
-        out[vec_i] = cfo_est;
+        out[vec_i] = -cfo_est;
         // std::cout << cfo_est << "\n";
     }
 
