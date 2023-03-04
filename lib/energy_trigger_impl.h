@@ -17,6 +17,10 @@ namespace gr {
     {
      private:
       int d_buf_len_before, d_buf_len_at_after;
+      float d_energy_threshold;
+      int d_samps_to_write;
+      std::vector<gr_complex> d_buf;
+      bool d_collecting;
 
      public:
       energy_trigger_impl(float energy_threshold, int buf_len_before, int buf_len_at_after);
