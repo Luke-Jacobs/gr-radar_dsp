@@ -20,6 +20,7 @@ list(APPEND radar_dsp_sources
     usrp_tx_rx_impl.cc
     cfo_estimator_impl.cc
     channel_estimator_impl.cc
+    energy_trigger_impl.cc
 )
 
 set(radar_dsp_sources "${radar_dsp_sources}" PARENT_SCOPE)

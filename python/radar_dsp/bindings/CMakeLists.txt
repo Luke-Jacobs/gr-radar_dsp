@@ -36,7 +36,8 @@ list(APPEND radar_dsp_python_files
     selfref_framesync_python.cc
     usrp_tx_rx_python.cc
     cfo_estimator_python.cc
-    channel_estimator_python.cc python_bindings.cc)
+    channel_estimator_python.cc
+    energy_trigger_python.cc python_bindings.cc)
 
 GR_PYBIND_MAKE_OOT(radar_dsp
    ../../..
