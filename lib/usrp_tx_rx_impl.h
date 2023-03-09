@@ -36,6 +36,7 @@ namespace gr {
     {
      private:
       float d_carrier_freq, d_sampling_rate, d_gain;
+      int d_channel;
       int d_samps_per_sym;
       bool d_tx_mode;
       int d_packet_len;
@@ -46,7 +47,7 @@ namespace gr {
       uhd::usrp::multi_usrp::sptr d_usrp;
 
      public:
-      usrp_tx_rx_impl(float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf);
+      usrp_tx_rx_impl(int channel, float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf);
       ~usrp_tx_rx_impl();
 
       bool start();

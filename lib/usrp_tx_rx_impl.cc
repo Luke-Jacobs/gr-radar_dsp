@@ -40,20 +40,21 @@ std::vector<gr_complex> upsample(const std::vector<gr_complex> &in_buf, int upsa
   return out;
 }
 
-usrp_tx_rx::sptr usrp_tx_rx::make(float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf)
+usrp_tx_rx::sptr usrp_tx_rx::make(int channel, float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf)
 {
-    return gnuradio::make_block_sptr<usrp_tx_rx_impl>(carrier_freq, sampling_rate, samps_per_sym, gain, packet_len, start_tx, ts_buf);
+    return gnuradio::make_block_sptr<usrp_tx_rx_impl>(channel, carrier_freq, sampling_rate, samps_per_sym, gain, packet_len, start_tx, ts_buf);
 }
 
 /*
  * The private constructor
  */
-usrp_tx_rx_impl::usrp_tx_rx_impl(float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf)
+usrp_tx_rx_impl::usrp_tx_rx_impl(int channel, float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf)
     : // the input is a sample vector (a single packet, a training sequence)
       // the output is a sample stream from the USRP, given to self-ref framesync
       gr::block("usrp_tx_rx",
                 gr::io_signature::make(0 /* min inputs */, 0 /* max inputs */, 0),
                 gr::io_signature::make(1 /* min outputs */, 1 /*max outputs */, sizeof(gr_complex))),
+      d_channel(channel),
       d_carrier_freq(carrier_freq),
       d_sampling_rate(sampling_rate),
       d_samps_per_sym(samps_per_sym),
@@ -109,8 +110,8 @@ bool usrp_tx_rx_impl::start() {
   d_usrp->set_tx_gain(d_gain, 1);
 
   // Set sample rate
-  d_usrp->set_rx_rate(d_sampling_rate, 0);
-  d_usrp->set_tx_rate(d_sampling_rate, 1);
+  d_usrp->set_rx_rate(d_sampling_rate, d_channel);
+  d_usrp->set_tx_rate(d_sampling_rate, d_channel);
   std::cout << "Actual RX Rate: " << d_usrp->get_rx_rate() / 1e6 << " Msps..." << std::endl;
   d_usrp->set_clock_source("internal");
   d_usrp->set_time_source("internal");
@@ -123,17 +124,17 @@ bool usrp_tx_rx_impl::start() {
   d_usrp->clear_command_time();
   d_usrp->set_command_time(d_usrp->get_time_now() + uhd::time_spec_t(0.1));
   uhd::tune_request_t tune_request(d_carrier_freq);
-  d_usrp->set_rx_freq(tune_request, 0);  // this command will be sent synchronously
-  d_usrp->set_tx_freq(tune_request, 1);  // this command will be sent synchronously
+  d_usrp->set_rx_freq(tune_request, d_channel);  // this command will be sent synchronously
+  d_usrp->set_tx_freq(tune_request, d_channel);  // this command will be sent synchronously
   std::this_thread::sleep_for(std::chrono::milliseconds(110));  // sleep 110ms (~10ms after retune occurs) to allow LO to lock
   d_usrp->clear_command_time();
 
   // create streams
   uhd::stream_args_t stream_args("fc32"); // complex floats
-  stream_args.channels = {0};  // RF 0 is RX
-  d_rx_stream = d_usrp->get_rx_stream(stream_args);
-  stream_args.channels = {1};  // RF 1 is TX
+  stream_args.channels = {(size_t)d_channel};  // Get TX
   d_tx_stream = d_usrp->get_tx_stream(stream_args);
+  stream_args.channels = {(size_t)d_channel};  // Get RX (need to specify TX/RX input vs. RX2 input?)
+  d_rx_stream = d_usrp->get_rx_stream(stream_args);
   std::cout << "Set up TX and RX streams\n";
 
   // setup continous streaming if put into receive mode
@@ -144,10 +145,10 @@ bool usrp_tx_rx_impl::start() {
   // preprocess training sequence
   auto ts_up = upsample(d_ts_buf, d_samps_per_sym);
   d_ts_mf_buf = rrc_filter(ts_up, d_sampling_rate, d_samps_per_sym, 11*d_samps_per_sym);
-  std::cout << "Matched-filter Training Sequence:\n";
-  for (auto sample : d_ts_mf_buf)
-    std::cout << sample << " ";
-  std::cout << "\n";
+  // std::cout << "Matched-filter Training Sequence:\n";
+  // for (auto sample : d_ts_mf_buf)
+  //   std::cout << sample << " ";
+  // std::cout << "\n";
 
   return true;
 }

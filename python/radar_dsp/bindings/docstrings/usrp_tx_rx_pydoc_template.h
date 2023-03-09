@@ -15,10 +15,7 @@
  */
 
 
+static const char* __doc_gr_radar_dsp_usrp_tx_rx = R"doc()doc";
 
- static const char *__doc_gr_radar_dsp_usrp_tx_rx = R"doc()doc";
 
-
- static const char *__doc_gr_radar_dsp_usrp_tx_rx_make = R"doc()doc";
-
-  
+static const char* __doc_gr_radar_dsp_usrp_tx_rx_make = R"doc()doc";
