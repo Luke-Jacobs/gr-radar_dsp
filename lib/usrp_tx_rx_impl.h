@@ -19,6 +19,7 @@
 #include <thread>
 #include <iostream>
 #include <fstream>
+#include <ctime>
 
 namespace gr {
   namespace radar_dsp {
@@ -45,6 +46,8 @@ namespace gr {
       uhd::rx_streamer::sptr d_rx_stream;
       uhd::tx_streamer::sptr d_tx_stream;
       uhd::usrp::multi_usrp::sptr d_usrp;
+      // Supplemental
+      std::time_t d_last_packet_sent;
 
      public:
       usrp_tx_rx_impl(int channel, float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf);

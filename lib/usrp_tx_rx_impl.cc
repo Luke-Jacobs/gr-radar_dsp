@@ -63,10 +63,14 @@ usrp_tx_rx_impl::usrp_tx_rx_impl(int channel, float carrier_freq, float sampling
       d_packet_len(packet_len),
       d_ts_buf(ts_buf)
 {
-  std::cout << "Carrier freq:" << carrier_freq << " Sampling rate:" << sampling_rate << " Gain:" << gain << "Start in TX Mode:" << start_tx << " Packet length:" << packet_len << "\n";
+  std::cout << "Carrier freq:" << carrier_freq << " Sampling rate:" << sampling_rate << 
+    " Gain:" << gain << " Start in TX Mode:" << start_tx << " Packet length:" << packet_len << " Channel:" << d_channel << std::endl;
 
   // Setup message passing
   message_port_register_in(pmt::intern("msg"));
+
+  // Supplemental
+  d_last_packet_sent = std::time(nullptr);
 }
 
 /*
@@ -97,7 +101,7 @@ bool usrp_tx_rx_impl::start() {
   
   // Always select the subdevice first, the channel mapping affects the other settings
   std::cout << "subdev set to: " << subdev << std::endl;
-  d_usrp->set_rx_subdev_spec(subdev);
+  d_usrp->set_rx_subdev_spec(subdev);  // TODO How to use this?
   std::cout << "Using Device: " << d_usrp->get_pp_string() << std::endl;
 
   // Set the sample rate
@@ -107,34 +111,43 @@ bool usrp_tx_rx_impl::start() {
   }
 
   // Set the TX gain
-  d_usrp->set_tx_gain(d_gain, 1);
+  if (d_tx_mode)
+    d_usrp->set_tx_gain(d_gain, 1);
 
   // Set sample rate
-  d_usrp->set_rx_rate(d_sampling_rate, d_channel);
-  d_usrp->set_tx_rate(d_sampling_rate, d_channel);
-  std::cout << "Actual RX Rate: " << d_usrp->get_rx_rate() / 1e6 << " Msps..." << std::endl;
-  d_usrp->set_clock_source("internal");
-  d_usrp->set_time_source("internal");
+  if (!d_tx_mode) {
+    d_usrp->set_rx_rate(d_sampling_rate, d_channel);
+    std::cout << "Actual RX Rate: " << d_usrp->get_rx_rate() / 1e6 << " Msps..." << std::endl;
+  } else {
+    d_usrp->set_tx_rate(d_sampling_rate, d_channel);
+  }
+
+  // d_usrp->set_clock_source("internal");
+  // d_usrp->set_time_source("internal");
 
   // Reset timing
-  d_usrp->set_time_next_pps(uhd::time_spec_t(0.0));
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  // d_usrp->set_time_next_pps(uhd::time_spec_t(0.0));
+  // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
   // Use the timed command interface to send a timed command to both channels
-  d_usrp->clear_command_time();
-  d_usrp->set_command_time(d_usrp->get_time_now() + uhd::time_spec_t(0.1));
+  // d_usrp->clear_command_time();
+  // d_usrp->set_command_time(d_usrp->get_time_now() + uhd::time_spec_t(0.1));
   uhd::tune_request_t tune_request(d_carrier_freq);
-  d_usrp->set_rx_freq(tune_request, d_channel);  // this command will be sent synchronously
-  d_usrp->set_tx_freq(tune_request, d_channel);  // this command will be sent synchronously
+  if (!d_tx_mode)
+    d_usrp->set_rx_freq(tune_request, d_channel);  // this command will be sent synchronously
+  if (d_tx_mode)
+    d_usrp->set_tx_freq(tune_request, d_channel);  // this command will be sent synchronously
   std::this_thread::sleep_for(std::chrono::milliseconds(110));  // sleep 110ms (~10ms after retune occurs) to allow LO to lock
-  d_usrp->clear_command_time();
+  // d_usrp->clear_command_time();
 
   // create streams
   uhd::stream_args_t stream_args("fc32"); // complex floats
   stream_args.channels = {(size_t)d_channel};  // Get TX
-  d_tx_stream = d_usrp->get_tx_stream(stream_args);
+  if (d_tx_mode)
+    d_tx_stream = d_usrp->get_tx_stream(stream_args);
   stream_args.channels = {(size_t)d_channel};  // Get RX (need to specify TX/RX input vs. RX2 input?)
-  d_rx_stream = d_usrp->get_rx_stream(stream_args);
+  if (!d_tx_mode)
+    d_rx_stream = d_usrp->get_rx_stream(stream_args);
   std::cout << "Set up TX and RX streams\n";
 
   // setup continous streaming if put into receive mode
@@ -168,7 +181,7 @@ void usrp_tx_rx_impl::send_packet(const std::vector<gr_complex>& buf, int repeti
   }
   md.time_spec = d_usrp->get_time_now() + uhd::time_spec_t(0.1);
   md.end_of_burst = true;
-  d_tx_stream->send("", 0, md);
+  d_tx_stream->send("", 0, md, 0.1);
 }
 
 size_t usrp_tx_rx_impl::recv_into_buf(std::vector<gr_complex> &buf, const size_t n) {
@@ -200,6 +213,7 @@ void usrp_tx_rx_impl::start_continuous_streaming() {
   stream_cmd.num_samps = 0;
   stream_cmd.stream_now = false;
   stream_cmd.time_spec = uhd::time_spec_t(d_usrp->get_time_now() + uhd::time_spec_t(0.5));
+  std::cout << "Issuing stream command" << std::flush << std::endl;
   d_rx_stream->issue_stream_cmd(stream_cmd);
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
@@ -235,6 +249,13 @@ int usrp_tx_rx_impl::general_work(int noutput_items,
     // std::cout << "Switching to RX mode\n";
     // start_continuous_streaming();
   } else {
+    // ========= SENDING BEFORE RECEIVING =========
+    // Send some samples over the TX antenna real fast so that they can be caught by RX on the next buffer grab
+    // if (std::time(nullptr) - d_last_packet_sent > 1) {  // Rate limit the time between pulses sent so that we can still grab RX packets
+    //   std::cout << "Sending packet on TX antenna\n";
+    //   send_packet(d_ts_mf_buf, 1);
+    //   d_last_packet_sent = std::time(nullptr);
+    // }
     // Pull samples from the USRP and write them to the temporary vector, then into the output
     std::vector<gr_complex> buf(noutput_items);
     size_t num_recv_samps = recv_into_buf(buf, noutput_items);
