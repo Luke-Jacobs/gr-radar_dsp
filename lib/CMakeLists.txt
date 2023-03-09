@@ -21,6 +21,7 @@ list(APPEND radar_dsp_sources
     cfo_estimator_impl.cc
     channel_estimator_impl.cc
     energy_trigger_impl.cc
+    pulse_align_impl.cc
 )
 
 set(radar_dsp_sources "${radar_dsp_sources}" PARENT_SCOPE)

@@ -57,7 +57,6 @@ int energy_trigger_impl::general_work(int noutput_items,
   int n_new_items = ninput_items[0] - d_buf_len_before;
   for (int samp_i = 0; samp_i < n_new_items; samp_i++) {
     if (!d_collecting && (std::abs(in[samp_i+d_buf_len_before]) > d_energy_threshold)) {
-      std::cout << "Triggered\n";
       d_buf.insert(d_buf.end(), in+samp_i, in+samp_i+d_buf_len_before);  // Copy d_buf_len_before number of samples into the buffer
       d_collecting = true;
       d_samps_to_write = d_buf_len_at_after;

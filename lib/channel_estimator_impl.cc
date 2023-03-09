@@ -46,12 +46,15 @@ namespace gr {
       for (int vec_i = 0; vec_i < noutput_items; vec_i++) {
         // Undo CFO with the given CFO estimate
         std::vector<gr_complex> rx_ts_buf(rx_ts_in+vec_i*d_training_seq_len, rx_ts_in+(vec_i+1)*d_training_seq_len);
+        arma::cx_fvec rx_ts_vec_before_cfo(rx_ts_buf);
+        // rx_ts_vec_before_cfo.print("RX TS Before CFO Correction:\n");
         for (int i = 0; i < d_training_seq_len; i++) {
           rx_ts_buf[i] *= std::exp(std::complex(0.0, 2.0*PI*cfo_est_in[vec_i]*i/d_samp_rate));  // The CFO estimate needs to have the correct sign or else this will not work
         }
 
         // Correlate the received training sequence against the transmitted copy
         arma::cx_fvec rx_ts_vec(rx_ts_buf);
+        // rx_ts_vec.print("RX TS After CFO Correction:\n");
         gr_complex corr = arma::sum(rx_ts_vec.t() * d_ts_buf);  // TODO Check the order of the dot product
         gr_complex unit_rotation = corr / std::abs(corr);
         out[vec_i] = unit_rotation;

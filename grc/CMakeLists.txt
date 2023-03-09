@@ -15,5 +15,6 @@ install(FILES
     radar_dsp_usrp_tx_rx.block.yml
     radar_dsp_cfo_estimator.block.yml
     radar_dsp_channel_estimator.block.yml
-    radar_dsp_energy_trigger.block.yml DESTINATION share/gnuradio/grc/blocks
+    radar_dsp_energy_trigger.block.yml
+    radar_dsp_pulse_align.block.yml DESTINATION share/gnuradio/grc/blocks
 )

@@ -30,6 +30,7 @@ namespace py = pybind11;
     void bind_cfo_estimator(py::module& m);
     void bind_channel_estimator(py::module& m);
     void bind_energy_trigger(py::module& m);
+    void bind_pulse_align(py::module& m);
 // ) END BINDING_FUNCTION_PROTOTYPES
 
 
@@ -67,5 +68,6 @@ PYBIND11_MODULE(radar_dsp_python, m)
     bind_cfo_estimator(m);
     bind_channel_estimator(m);
     bind_energy_trigger(m);
+    bind_pulse_align(m);
     // ) END BINDING_FUNCTION_CALLS
 }

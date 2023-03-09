@@ -19,5 +19,6 @@ install(FILES
     usrp_tx_rx.h
     cfo_estimator.h
     channel_estimator.h
-    energy_trigger.h DESTINATION include/gnuradio/radar_dsp
+    energy_trigger.h
+    pulse_align.h DESTINATION include/gnuradio/radar_dsp
 )

@@ -22,6 +22,15 @@
 
 namespace gr {
   namespace radar_dsp {
+    /*
+     * Matched Filter Convolution
+     */
+    std::vector<gr_complex> rrc_filter(std::vector<gr_complex>& buf, float samp_rate, int samps_per_sym, int num_taps);
+
+    /*
+     * Upsampling
+     */
+    std::vector<gr_complex> upsample(const std::vector<gr_complex> &in_buf, int upsampling_rate);
 
     class usrp_tx_rx_impl : public usrp_tx_rx
     {
