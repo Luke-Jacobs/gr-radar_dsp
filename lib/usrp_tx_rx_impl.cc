@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <gnuradio/filter/firdes.h>
 #include <armadillo>
+#include <bitset>
 
 namespace gr {
 namespace radar_dsp {
@@ -34,7 +35,7 @@ std::vector<gr_complex> rrc_filter(std::vector<gr_complex>& buf, float samp_rate
 std::vector<gr_complex> upsample(const std::vector<gr_complex> &in_buf, int upsampling_rate) {
   assert(upsampling_rate > 0);
   std::vector<gr_complex> out(in_buf.size() * upsampling_rate, gr_complex(0.0, 0.0));
-  for (int i = 0; i < in_buf.size() * upsampling_rate; i++) {
+  for (int i = 0; i < in_buf.size(); i++) {
     out[i*upsampling_rate] = in_buf[i];
   }
   return out;
@@ -80,7 +81,6 @@ usrp_tx_rx_impl::~usrp_tx_rx_impl() {
   // If in receive mode (TODO change this in the future when I will have both channels open at once)
   if (!d_tx_mode) {
     stop_continuous_streaming();
-    std::cout << "Stopped streaming from RX\n" << std::flush;
   }
 }
 
@@ -122,51 +122,59 @@ bool usrp_tx_rx_impl::start() {
     d_usrp->set_tx_rate(d_sampling_rate, d_channel);
   }
 
-  // d_usrp->set_clock_source("internal");
-  // d_usrp->set_time_source("internal");
+  d_usrp->set_clock_source("internal");
+  d_usrp->set_time_source("internal");
 
   // Reset timing
-  // d_usrp->set_time_next_pps(uhd::time_spec_t(0.0));
-  // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  d_usrp->set_time_next_pps(uhd::time_spec_t(0.0));
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
   // Use the timed command interface to send a timed command to both channels
-  // d_usrp->clear_command_time();
-  // d_usrp->set_command_time(d_usrp->get_time_now() + uhd::time_spec_t(0.1));
+  d_usrp->clear_command_time();
+  d_usrp->set_command_time(d_usrp->get_time_now() + uhd::time_spec_t(0.1));
   uhd::tune_request_t tune_request(d_carrier_freq);
-  if (!d_tx_mode)
-    d_usrp->set_rx_freq(tune_request, d_channel);  // this command will be sent synchronously
-  if (d_tx_mode)
-    d_usrp->set_tx_freq(tune_request, d_channel);  // this command will be sent synchronously
+  d_usrp->set_rx_freq(tune_request, d_channel);  // this command will be sent synchronously
+  d_usrp->set_tx_freq(tune_request, d_channel);  // this command will be sent synchronously
   std::this_thread::sleep_for(std::chrono::milliseconds(110));  // sleep 110ms (~10ms after retune occurs) to allow LO to lock
-  // d_usrp->clear_command_time();
+  d_usrp->clear_command_time();
 
-  // create streams
+  // Create stream to TX and RX antennas on the same channel
   uhd::stream_args_t stream_args("fc32"); // complex floats
   stream_args.channels = {(size_t)d_channel};  // Get TX
-  if (d_tx_mode)
-    d_tx_stream = d_usrp->get_tx_stream(stream_args);
-  stream_args.channels = {(size_t)d_channel};  // Get RX (need to specify TX/RX input vs. RX2 input?)
-  if (!d_tx_mode)
-    d_rx_stream = d_usrp->get_rx_stream(stream_args);
-  std::cout << "Set up TX and RX streams\n";
+  d_tx_stream = d_usrp->get_tx_stream(stream_args);
+  d_rx_stream = d_usrp->get_rx_stream(stream_args);
+  std::cout << "Set up TX and RX streams for channel " << d_channel << std::endl;
 
-  // setup continous streaming if put into receive mode
+  // Setup continuous streaming, even if initially in TX mode 
+  // (this is because it is time-consuming to send stream commands to the USRP to start/stop continuous streaming)
   if (!d_tx_mode) {
     start_continuous_streaming();
   }
 
-  // preprocess training sequence
-  auto ts_up = upsample(d_ts_buf, d_samps_per_sym);
-  d_ts_mf_buf = rrc_filter(ts_up, d_sampling_rate, d_samps_per_sym, 11*d_samps_per_sym);
-  // std::cout << "Matched-filter Training Sequence:\n";
-  // for (auto sample : d_ts_mf_buf)
-  //   std::cout << sample << " ";
-  // std::cout << "\n";
-
   return true;
 }
 
-void usrp_tx_rx_impl::send_packet(const std::vector<gr_complex>& buf, int repetition = 1) {
+/* 
+ * Send a Ranging Packet
+ * - This function takes three packet fields, the training sequence, the count-till-switch, and the previous channel estimate, and assembles
+ *   them into a sequence of bits which are passed through an RRC filter. The complex buffer is then transmitted over the air to listening USRPs.
+ */
+void usrp_tx_rx_impl::send_ranging_packet(const std::vector<gr_complex>& ts_buf, int count_till_switch, gr_complex prev_chan_est, int repetition = 1) {
+  // Assemble symbol buffer (TODO send previous channel estimate over the air)
+  std::vector<gr_complex> payload(ts_buf);
+  char* int_bits = reinterpret_cast<char*>(&count_till_switch);
+  for (std::size_t char_i = 0; char_i < sizeof(count_till_switch); char_i++) {
+    auto char_in_int_bits = std::bitset<8>(int_bits[char_i]);
+    // Another for loop to add each bit into the payload
+    for (int bit_i = 0; bit_i < 8; bit_i++) {
+      payload.push_back(gr_complex(static_cast<int>(char_in_int_bits[bit_i]), 0.0));
+    }
+  }
+
+  auto payload_up = upsample(payload, d_samps_per_sym);
+  auto payload_filtered = rrc_filter(payload_up, d_sampling_rate, d_samps_per_sym, 11*d_samps_per_sym);
+  
+  // Format TX packet metadata to send packet 100ms in the future so that the USRP does not get overwhelmed
   uhd::tx_metadata_t md;
   md.start_of_burst = false;
   md.end_of_burst = false;
@@ -174,11 +182,21 @@ void usrp_tx_rx_impl::send_packet(const std::vector<gr_complex>& buf, int repeti
   md.time_spec = d_usrp->get_time_now() + uhd::time_spec_t(0.1);
   size_t num_sent_samps = 0;
 
+  // Print bits of payload
+  // std::cout << "Payload: ";
+  // for (auto samp : payload_filtered) {
+  //   std::cout << samp << " ";
+  // }
+  // std::cout << std::endl;
+  // std::cout << "Sending packet of length " << payload_filtered.size() << std::endl;
+
   for (int i = 0; i < repetition; i++)
-    num_sent_samps += d_tx_stream->send(&buf.front(), buf.size(), md, 1);
-  if (num_sent_samps != buf.size()*repetition) {
+    num_sent_samps += d_tx_stream->send(&payload_filtered.front(), payload_filtered.size(), md, 1);
+  if (num_sent_samps != payload_filtered.size()*repetition) {
     throw std::runtime_error("The number of sent samples does not equal the desired packet length");
   }
+
+  // Send EOB to tell the USRP to stop waiting on TX packets
   md.time_spec = d_usrp->get_time_now() + uhd::time_spec_t(0.1);
   md.end_of_burst = true;
   d_tx_stream->send("", 0, md, 0.1);
@@ -213,7 +231,7 @@ void usrp_tx_rx_impl::start_continuous_streaming() {
   stream_cmd.num_samps = 0;
   stream_cmd.stream_now = false;
   stream_cmd.time_spec = uhd::time_spec_t(d_usrp->get_time_now() + uhd::time_spec_t(0.5));
-  std::cout << "Issuing stream command" << std::flush << std::endl;
+  std::cout << "Issuing stream command to continuously stream from RX on channel " << d_channel << std::flush << std::endl;
   d_rx_stream->issue_stream_cmd(stream_cmd);
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
@@ -221,6 +239,7 @@ void usrp_tx_rx_impl::start_continuous_streaming() {
 // This function should only be needed on exiting the program, not when switching between TX & RX
 void usrp_tx_rx_impl::stop_continuous_streaming() {
   uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
+  std::cout << "Stopping continuous streaming from RX on channel " << d_channel << std::endl << std::flush;
   d_rx_stream->issue_stream_cmd(stream_cmd);
 }
 
@@ -239,23 +258,15 @@ int usrp_tx_rx_impl::general_work(int noutput_items,
 
   if (d_tx_mode) {
     // Send internal training sequence
-    send_packet(d_ts_mf_buf, 1);
-    std::cout << "Sending packet of length " << d_ts_mf_buf.size() << std::endl;
+    send_ranging_packet(d_ts_buf, 5, gr_complex(0.0, 0.0), 1);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     produce(0, 0);
 
-    // Switch off to receive mode
+    // Switch off to receive mode when the packet counter reaches 0
     // d_tx_mode = false;
     // std::cout << "Switching to RX mode\n";
     // start_continuous_streaming();
   } else {
-    // ========= SENDING BEFORE RECEIVING =========
-    // Send some samples over the TX antenna real fast so that they can be caught by RX on the next buffer grab
-    // if (std::time(nullptr) - d_last_packet_sent > 1) {  // Rate limit the time between pulses sent so that we can still grab RX packets
-    //   std::cout << "Sending packet on TX antenna\n";
-    //   send_packet(d_ts_mf_buf, 1);
-    //   d_last_packet_sent = std::time(nullptr);
-    // }
     // Pull samples from the USRP and write them to the temporary vector, then into the output
     std::vector<gr_complex> buf(noutput_items);
     size_t num_recv_samps = recv_into_buf(buf, noutput_items);

@@ -56,7 +56,7 @@ namespace gr {
       bool start();
 
       // Sends packet_len number of samples stored in `in`
-      void usrp_tx_rx_impl::send_packet(const std::vector<gr_complex>& buf, int repetition);
+      void usrp_tx_rx_impl::send_ranging_packet(const std::vector<gr_complex>& buf, int count_till_switch, gr_complex prev_chan_est, int repetition);
 
       // Wait for a packet until one comes
       size_t usrp_tx_rx_impl::recv_into_buf(std::vector<gr_complex> &buf, const size_t n);
