@@ -14,7 +14,7 @@
 /* BINDTOOL_GEN_AUTOMATIC(0)                                                       */
 /* BINDTOOL_USE_PYGCCXML(0)                                                        */
 /* BINDTOOL_HEADER_FILE(channel_estimator.h)                                        */
-/* BINDTOOL_HEADER_FILE_HASH(a22e8fba1c1b1e3ab8203df92c213b22)                     */
+/* BINDTOOL_HEADER_FILE_HASH(8303fa787ed3dfb7bcf250fee9bab928)                     */
 /***********************************************************************************/
 
 #include <pybind11/complex.h>
@@ -30,33 +30,22 @@ namespace py = pybind11;
 void bind_channel_estimator(py::module& m)
 {
 
-    using channel_estimator    = gr::radar_dsp::channel_estimator;
+    using channel_estimator = gr::radar_dsp::channel_estimator;
 
 
-    py::class_<channel_estimator, gr::block, gr::basic_block,
-        std::shared_ptr<channel_estimator>>(m, "channel_estimator", D(channel_estimator))
+    py::class_<channel_estimator,
+               gr::block,
+               gr::basic_block,
+               std::shared_ptr<channel_estimator>>(
+        m, "channel_estimator", D(channel_estimator))
 
         .def(py::init(&channel_estimator::make),
-           py::arg("training_seq_len"),
-           py::arg("samp_rate"),
-           py::arg("ts_buf"),
-           D(channel_estimator,make)
-        )
-        
-
+             py::arg("*block_name"),
+             py::arg("training_seq_len"),
+             py::arg("samp_rate"),
+             py::arg("ts_buf"),
+             D(channel_estimator, make))
 
 
         ;
-
-
-
-
 }
-
-
-
-
-
-
-
-

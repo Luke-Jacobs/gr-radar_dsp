@@ -15,10 +15,7 @@
  */
 
 
+static const char* __doc_gr_radar_dsp_channel_estimator = R"doc()doc";
 
- static const char *__doc_gr_radar_dsp_channel_estimator = R"doc()doc";
 
-
- static const char *__doc_gr_radar_dsp_channel_estimator_make = R"doc()doc";
-
-  
+static const char* __doc_gr_radar_dsp_channel_estimator_make = R"doc()doc";

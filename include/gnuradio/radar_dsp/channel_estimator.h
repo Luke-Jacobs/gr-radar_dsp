@@ -32,7 +32,7 @@ namespace gr {
        * class. radar_dsp::channel_estimator::make is the public interface for
        * creating new instances.
        */
-      static sptr make(int training_seq_len, float samp_rate, const std::vector<gr_complex>& ts_buf);
+      static sptr make(const std::string block_name, int training_seq_len, float samp_rate, const std::vector<gr_complex>& ts_buf);
     };
 
   } // namespace radar_dsp

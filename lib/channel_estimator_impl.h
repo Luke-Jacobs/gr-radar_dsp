@@ -20,9 +20,10 @@ namespace gr {
       int d_training_seq_len;
       float d_samp_rate;
       arma::cx_fvec d_ts_buf;
+      const std::string d_block_name;
 
      public:
-      channel_estimator_impl(int training_seq_len, float samp_rate, const std::vector<gr_complex>& buf);
+      channel_estimator_impl(const std::string block_name, int training_seq_len, float samp_rate, const std::vector<gr_complex>& buf);
       ~channel_estimator_impl();
 
       // Where all the action really happens

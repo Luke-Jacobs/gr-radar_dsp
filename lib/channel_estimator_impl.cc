@@ -13,24 +13,25 @@ namespace gr {
 
   static const double PI = 3.14159265358979323;  // std::acos(-1);
 
-    channel_estimator::sptr channel_estimator::make(int training_seq_len, float samp_rate, const std::vector<gr_complex>& ts_buf)
+    channel_estimator::sptr channel_estimator::make(const std::string block_name, int training_seq_len, float samp_rate, const std::vector<gr_complex>& ts_buf)
     {
-      return gnuradio::make_block_sptr<channel_estimator_impl>(training_seq_len, samp_rate, ts_buf);
+      return gnuradio::make_block_sptr<channel_estimator_impl>(block_name, training_seq_len, samp_rate, ts_buf);
     }
 
 
     /*
      * The private constructor
      */
-    channel_estimator_impl::channel_estimator_impl(int training_seq_len, float samp_rate, const std::vector<gr_complex>& ts_buf)
+    channel_estimator_impl::channel_estimator_impl(const std::string block_name, int training_seq_len, float samp_rate, const std::vector<gr_complex>& ts_buf)
       : gr::sync_block("channel_estimator",
                        gr::io_signature::make2(2 /* min inputs */, 2 /* max inputs */, sizeof(gr_complex)*training_seq_len, sizeof(float)),
                        gr::io_signature::make(1 /* min outputs */, 1 /*max outputs */, sizeof(gr_complex))),
         d_training_seq_len(training_seq_len),
-        d_samp_rate(samp_rate)
-      {
-        d_ts_buf = arma::cx_fvec(ts_buf);
-      }
+        d_samp_rate(samp_rate),
+        d_block_name(block_name)
+    {
+      d_ts_buf = arma::cx_fvec(ts_buf);
+    }
 
     /*
      * Our virtual destructor.
@@ -58,6 +59,8 @@ namespace gr {
         gr_complex corr = arma::sum(rx_ts_vec.t() * d_ts_buf);  // TODO Check the order of the dot product
         gr_complex unit_rotation = corr / std::abs(corr);
         out[vec_i] = unit_rotation;
+
+        std::cout << "[" << d_block_name << "] Channel Estimation: " << std::arg(unit_rotation) << std::endl << std::flush;
       }
 
       // Tell runtime system how many output items we produced.

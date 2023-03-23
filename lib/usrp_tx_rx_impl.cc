@@ -60,18 +60,17 @@ usrp_tx_rx_impl::usrp_tx_rx_impl(int channel, float carrier_freq, float sampling
       d_sampling_rate(sampling_rate),
       d_samps_per_sym(samps_per_sym),
       d_gain(gain),
+      d_start_tx_mode(start_tx),
       d_tx_mode(start_tx),
       d_packet_len(packet_len),
-      d_ts_buf(ts_buf)
+      d_ts_buf(ts_buf),
+      d_rx_recv_till(0), d_tx_packets_to_send(0)
 {
   std::cout << "Carrier freq:" << carrier_freq << " Sampling rate:" << sampling_rate << 
     " Gain:" << gain << " Start in TX Mode:" << start_tx << " Packet length:" << packet_len << " Channel:" << d_channel << std::endl;
 
   // Setup message passing
   message_port_register_in(pmt::intern("msg"));
-
-  // Supplemental
-  d_last_packet_sent = std::time(nullptr);
 }
 
 /*
@@ -111,16 +110,14 @@ bool usrp_tx_rx_impl::start() {
   }
 
   // Set the TX gain
-  if (d_tx_mode)
-    d_usrp->set_tx_gain(d_gain, 1);
+  d_usrp->set_tx_gain(d_gain, d_channel);
+  // Set the RX gain
+  d_usrp->set_rx_gain(10, d_channel);
 
   // Set sample rate
-  if (!d_tx_mode) {
-    d_usrp->set_rx_rate(d_sampling_rate, d_channel);
-    std::cout << "Actual RX Rate: " << d_usrp->get_rx_rate() / 1e6 << " Msps..." << std::endl;
-  } else {
-    d_usrp->set_tx_rate(d_sampling_rate, d_channel);
-  }
+  d_usrp->set_rx_rate(d_sampling_rate, d_channel);
+  d_usrp->set_tx_rate(d_sampling_rate, d_channel);
+  std::cout << "Actual RX Rate: " << d_usrp->get_rx_rate() / 1e6 << " Msps | Actual TX Rate: " << d_usrp->get_tx_rate() / 1e6 << " Msps" << std::endl;
 
   d_usrp->set_clock_source("internal");
   d_usrp->set_time_source("internal");
@@ -145,10 +142,12 @@ bool usrp_tx_rx_impl::start() {
   d_rx_stream = d_usrp->get_rx_stream(stream_args);
   std::cout << "Set up TX and RX streams for channel " << d_channel << std::endl;
 
-  // Setup continuous streaming, even if initially in TX mode 
-  // (this is because it is time-consuming to send stream commands to the USRP to start/stop continuous streaming)
+  // Setup continuous streaming if starting in TX mode
   if (!d_tx_mode) {
     start_continuous_streaming();
+    d_tx_packets_to_send = d_tx_packets_per_round;
+  } else {
+    d_rx_recv_till = std::time(nullptr) + d_rx_seconds_per_round;
   }
 
   return true;
@@ -236,6 +235,27 @@ void usrp_tx_rx_impl::start_continuous_streaming() {
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
+void usrp_tx_rx_impl::hop_frequency(float new_frequency) {
+  // TODO: Figure out if I need to re-initialize the TX and RX streams after hopping frequency
+  std::printf("[Channel %d] Hopping to %f\n", d_channel, new_frequency);
+  d_usrp->clear_command_time();
+  d_usrp->set_command_time(d_usrp->get_time_now() + uhd::time_spec_t(0.1));
+
+  // Tune TX and RX synchronously
+  uhd::tune_request_t tune_request(new_frequency);
+  d_usrp->set_rx_freq(tune_request, d_channel);  // this command will be sent synchronously
+  d_usrp->set_tx_freq(tune_request, d_channel);  // this command will be sent synchronously
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(110));  // sleep 110ms (~10ms after retune occurs) to allow LO to lock
+  d_usrp->clear_command_time();
+    // Set the TX gain
+  d_usrp->set_tx_gain(d_gain, d_channel);
+  // Set the RX gain
+  d_usrp->set_rx_gain(10, d_channel);
+
+  d_carrier_freq = new_frequency;
+}
+
 // This function should only be needed on exiting the program, not when switching between TX & RX
 void usrp_tx_rx_impl::stop_continuous_streaming() {
   uhd::stream_cmd_t stream_cmd(uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS);
@@ -258,14 +278,21 @@ int usrp_tx_rx_impl::general_work(int noutput_items,
 
   if (d_tx_mode) {
     // Send internal training sequence
-    send_ranging_packet(d_ts_buf, 5, gr_complex(0.0, 0.0), 1);
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::cout << "Sending ranging packet on channel " << d_channel << std::endl;
+    send_ranging_packet(d_ts_buf, d_tx_packets_to_send, gr_complex(0.0, 0.0), 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds(800));
+    d_tx_packets_to_send--;
     produce(0, 0);
 
     // Switch off to receive mode when the packet counter reaches 0
-    // d_tx_mode = false;
-    // std::cout << "Switching to RX mode\n";
-    // start_continuous_streaming();
+    if (d_tx_packets_to_send < 1) {
+      printf("[Channel %d] Switching to RX mode\n", d_channel);
+      d_tx_mode = false;
+      if (!d_start_tx_mode)  // If we have made one round of RX then TX
+        hop_frequency(d_carrier_freq + 100e6);
+      d_rx_recv_till = std::time(nullptr) + d_rx_seconds_per_round;  // Start streaming timer
+      start_continuous_streaming();
+    }
   } else {
     // Pull samples from the USRP and write them to the temporary vector, then into the output
     std::vector<gr_complex> buf(noutput_items);
@@ -275,6 +302,15 @@ int usrp_tx_rx_impl::general_work(int noutput_items,
     std::copy(buf.begin(), buf.begin() + n_written_samps, out);
     
     produce(0, n_written_samps);
+
+    if (std::time(nullptr) > d_rx_recv_till) {
+      printf("[Channel %d] Switching to TX mode\n", d_channel);
+      d_tx_mode = true;
+      stop_continuous_streaming();
+      if (d_start_tx_mode)  // If we have made one round of TX then RX
+        hop_frequency(d_carrier_freq + 100e6);
+      d_tx_packets_to_send = d_tx_packets_per_round;
+    }
   }
 
   // Tell runtime system how many output items we produced.

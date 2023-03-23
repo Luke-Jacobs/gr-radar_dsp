@@ -39,15 +39,15 @@ namespace gr {
       float d_carrier_freq, d_sampling_rate, d_gain;
       int d_channel;
       int d_samps_per_sym;
-      bool d_tx_mode;
+      bool d_start_tx_mode, d_tx_mode;
       int d_packet_len;
       const std::vector<gr_complex> d_ts_buf;
       std::vector<gr_complex> d_ts_mf_buf;
       uhd::rx_streamer::sptr d_rx_stream;
       uhd::tx_streamer::sptr d_tx_stream;
       uhd::usrp::multi_usrp::sptr d_usrp;
-      // Supplemental
-      std::time_t d_last_packet_sent;
+      int d_tx_packets_to_send, d_tx_packets_per_round = 5;
+      int d_rx_recv_till, d_rx_seconds_per_round = 5;
 
      public:
       usrp_tx_rx_impl(int channel, float carrier_freq, float sampling_rate, int samps_per_sym, float gain, int packet_len, bool start_tx, const std::vector<gr_complex>& ts_buf);
@@ -57,6 +57,8 @@ namespace gr {
 
       // Sends packet_len number of samples stored in `in`
       void usrp_tx_rx_impl::send_ranging_packet(const std::vector<gr_complex>& buf, int count_till_switch, gr_complex prev_chan_est, int repetition);
+
+      void usrp_tx_rx_impl::hop_frequency(float new_frequency);
 
       // Wait for a packet until one comes
       size_t usrp_tx_rx_impl::recv_into_buf(std::vector<gr_complex> &buf, const size_t n);
